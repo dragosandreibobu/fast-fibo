@@ -124,7 +124,11 @@ dafny verify src/FastFibonacci.dfy
 dafny verify src/Int64Fibonacci.dfy
 ```
 
-The previously completed Levels 1–2 yielded **12 verified, 0 errors**. Level 3, including the maximal-domain lemmas, yielded **15 verified, 0 errors** in local verification using Dafny 4.11.0.
+The original Level 1–2 implementation (before adding `Addition` and `DoublingFromAddition`) was reported as **12 verified, 0 errors**; the original Level 3 source was reported as **15 verified, 0 errors**. These counts refer to the earlier implementation and are not final results for the present branch.
+
+**Evidence note — 17 November 2026 (recursive contribution only):** [GitHub Actions run 44076070769](https://github.com/dragosandreibobu/fast-fibo/actions/runs/44076070769) verified the source in draft PR #7 with Dafny 4.11.0. The CI logs show **16 verified, 0 errors** for `src/FastFibonacci.dfy` and **15 verified, 0 errors** for `src/Int64Fibonacci.dfy` (including the former file). These are verifier-reported verification-condition aggregate counts, not the number of individual theorems, test cases, or benchmarks.
+
+**Final results for the combined recursive + iterative solution are pending.** Issue #5 owns the final verification matrix, elapsed times, failures (if any), and assumptions disclosure after the iterative source is integrated. Do not sum the two verification counts as if they were disjoint.
 
 The project uses no `assume` or `{:axiom}` in the verification source. The mathematical correctness and representability properties above are mechanically verified. GitHub Actions is configured to run both verification commands on `main`.
 
@@ -139,3 +143,15 @@ Counting steps in the algorithm itself avoids proving a bound only for an unrela
 Level 3 exposes an important API-design distinction: the pair-producing implementation needs n<=91 because F(93) cannot be its second output for n=92, while the result-only implementation can still compute F(92) safely. The proof therefore needs a special branch that does not generate F(93).
 
 **Limitations:** the signed-64-bit proof operates on mathematical integers with a refinement type, not directly on a compiled hardware integer implementation. The analysis does not include an unchecked wrapping model, CPU instruction costs, compiler translations, memory usage, or general bit-complexity. The complete proof details are in `docs/complexity.md` and `docs/safety.md`.
+
+### Discussion draft — proof engineering decisions (for joint review)
+
+**Why return a pair?** The mathematical identities for `Fib(2*k)` and `Fib(2*k+1)` both depend on `Fib(k)` and `Fib(k+1)`. Returning the consecutive pair makes the inductive hypothesis strong enough for either parity of `n` without performing two independent recursive calculations. The result-only API then projects the first component. This is a deliberate instance of strengthening an invariant/interface to simplify a proof.
+
+**Why keep two doubling proofs?** The direct induction in `Doubling(k)` follows the recurrence locally and shows how an elementary algebraic identity supports an algorithm. The new `Addition(m,n)` lemma is a reusable general theorem; `DoublingFromAddition(k)` demonstrates that both doubling formulas are special cases. This proof redundancy is not required for H24, but it helps audit whether fast doubling depends on any circular assumption. Both routes are verified against the same independently defined Fibonacci sequence.
+
+**What is and is not proved?** Universal functional correctness and termination are established for all `nat` inputs using unbounded mathematical integers. Exact logarithmic *recursive-step count* is established separately. The signed-64-bit model certifies representability of designated arithmetic intermediates for bounded input domains, but it does not establish compiled machine-code safety under arbitrary language semantics. In particular, the recursive-step theorem must not be presented as a full bit-complexity or wall-clock runtime bound.
+
+**Integration risk:** The iterative extension will require a new loop invariant encoding the processed index/bits and a termination measure for its loop. The successful recursive proof does not discharge either iterative obligation. Final claims, report Section D, and the shared discussion should distinguish the separately verified implementations and list the commands and verifier outputs for the exact submitted commit.
+
+**Submission checklist for the joint review:** confirm that the teacher's H24 grading requirements are represented by S1–S16; ensure the final code contains no trust-bypassing `assume` or `{:axiom}` constructs; rerun CI on the merged final commit; document any limitations or incomplete iterative proof rather than treating unverified material as a result. The optional Level 2–3 extensions should remain identifiable as extensions, not implicit prerequisites for the Level 1 proof.
