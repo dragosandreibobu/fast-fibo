@@ -1,10 +1,11 @@
 # Verified Fast Fibonacci — FMSE Homework H24
 
-This repository implements the **fast-doubling Fibonacci algorithm** and formally verifies three complementary properties in Dafny 4.11.0:
+This repository implements the **fast-doubling Fibonacci algorithm** and formally verifies four complementary properties in Dafny 4.11.0:
 
 1. **Level 1 — Functional correctness and termination** for every natural-number input.
 2. **Level 2 — Exact logarithmic recursion depth**, certified by an instrumented step counter.
 3. **Level 3 — Signed-64-bit overflow safety**, with the maximal safe input range established mathematically.
+4. **Level 4 — Iterative bit-based fast doubling**, with verified loop invariants and termination.
 
 ## Run the proofs
 
@@ -13,9 +14,10 @@ Install [Dafny 4.11.0](https://dafny.org/latest/Installation) and execute:
 ```sh
 dafny verify src/FastFibonacci.dfy
 dafny verify src/Int64Fibonacci.dfy
+dafny verify src/IterativeFibonacci.dfy
 ```
 
-Both files are verified by [GitHub Actions](.github/workflows/verify.yml) on pushes to `main` and pull requests.
+All three files are verified by [GitHub Actions](.github/workflows/verify.yml) on pushes to `main` and pull requests.
 
 ## Level 1: algorithm correctness
 
@@ -64,10 +66,15 @@ signed 64-bit maximum = 9,223,372,036,854,775,807
 
 A complete proof of representability is **not** the same as verifying a particular machine-code binary. The source uses mathematical integers with range-refinement proof obligations.
 
+## Level 4: iterative fast doubling
+
+`IterativeFibonacci.dfy` processes the binary digits of `n` from most significant to least significant. Dafny proves the loop invariants connecting the current pair to the processed prefix, termination of both loops, and the postcondition `result == Fib(n)` for every natural input. Run `dafny run src/IterativeFibonacci.dfy` for the concrete examples.
+
 ## Repository layout
 
 - [`src/FastFibonacci.dfy`](src/FastFibonacci.dfy) — Levels 1 and 2
 - [`src/Int64Fibonacci.dfy`](src/Int64Fibonacci.dfy) — Level 3, including the original module
+- [`src/IterativeFibonacci.dfy`](src/IterativeFibonacci.dfy) — Level 4, iterative correctness and loop invariants
 - [`docs/complexity.md`](docs/complexity.md) — logarithmic bound and proof explanation
 - [`docs/safety.md`](docs/safety.md) — 64-bit model, exact boundaries, safe intermediate operations
 - [`docs/report.md`](docs/report.md) — FMSE homework report (sections A–E)
