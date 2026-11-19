@@ -129,12 +129,24 @@ F(100) = 354224848179261915075
 
 ## E. Discussion
 
-The central benefit of fast doubling is that a pair of consecutive Fibonacci values lets one recursive call calculate two new consecutive values. This makes the algorithm concise while still requiring a substantive inductive proof.
+### Difficulties encountered and their resolution
 
-Counting steps in the algorithm itself avoids proving a bound only for an unrelated abstract recurrence. The two-sided power bound proves logarithmic recursion depth without involving floating-point logarithms.
+**Proving the doubling identities.** The fast-doubling formulas do not follow automatically from the Fibonacci recurrence in the verifier. The recursive proof uses the `Doubling` lemma, induction, and explicit algebraic calculation steps to connect `Fib(k)`, `Fib(k+1)`, `Fib(2k)`, and `Fib(2k+1)`. The executable recursive implementation then reuses the lemma rather than assuming the identities.
 
-Level 3 exposes an important API-design distinction: the pair-producing implementation needs n<=91 because F(93) cannot be its second output for n=92, while the result-only implementation can still compute F(92) safely. The proof therefore needs a special branch that does not generate F(93).
+**Relating the iterative state to the input.** Unlike the recursive implementation, the iterative version requires a loop invariant expressing what has already been processed. The key invariant is `(a,b) = (Fib(n / mask), Fib(n / mask + 1))`, with `mask = Pow2(i)`. It describes the processed binary prefix and is maintained by the even/odd fast-doubling update. A separate invariant `mask = Pow2(bits)` establishes the initial bit-length, while decreasing variants justify termination of both loops.
 
-**Limitations:** the signed-64-bit proof operates on mathematical integers with a refinement type, not directly on a compiled hardware integer implementation. The analysis does not include an unchecked wrapping model, CPU instruction costs, compiler translations, memory usage, or general bit-complexity. The complete proof details are in `docs/complexity.md` and `docs/safety.md`.
+**Arithmetic reasoning during bit extraction.** Connecting successive prefixes requires `(n / m) / 2 = n / (2*m)` for positive `m`. This is not merely an algebraic rewrite for an SMT solver reasoning about integer division. The implementation introduces `DivMul2`, supported by `DivSmall`, `DivStep`, and `MulCancelDiv`, with explicit induction and Euclidean-division reasoning to make the proof tractable.
 
-**Recursive vs. iterative verification trade-offs:** Implementing both versions highlighted a key contrast in deductive verification. The recursive method (`FastPair`) mirrors the mathematical induction directly and requires no loop invariants, whereas the iterative method (`FastIterativePair`) avoids recursion overhead at runtime but requires expressing the partially processed binary prefix `n / Pow2(i)` as an explicit loop invariant and decomposing Euclidean division (`DivMul2` via `MulCancelDiv` and `DivStep`) into linear inductive steps so Z3 can verify it without timing out.
+**Proving the exact recursion-step bound.** A separate asymptotic claim would not establish the cost of the implemented method. The recursive implementation therefore returns an instrumented step count and proves it equals `RecursiveSteps(n)`. The `DepthBounds` lemma establishes `2^(steps-1) <= n < 2^steps` for positive `n`, yielding an exact bit-length characterization.
+
+**Avoiding signed-64-bit overflow.** The pair-returning interface must produce `F(n+1)` as well as `F(n)`, so its maximum input is 91, whereas the result-only interface can accept 92. The latter uses a special branch for 92 that avoids constructing `F(93)`. Intermediate values are checked against the `I64` refinement type; this is a representability proof over mathematical integers, not a proof about a particular compiled binary.
+
+### Interesting findings and trade-offs
+
+The recursive version closely follows mathematical induction and needs no loop invariants. The iterative version eliminates recursive calls in its algorithmic structure but requires a more involved state invariant and division lemmas. Both use the same verified mathematical doubling identities. The exact recursion-step theorem counts pair calculations under a unit-cost arithmetic model, not bit-operation runtime. Likewise, the arbitrary-precision iterative result is correct for every natural input, while the signed-64-bit implementation needs a bounded domain.
+
+### Verification evidence and limitations
+
+With Dafny 4.11.0, the three source files were independently checked on 19 November 2026: `FastFibonacci.dfy` (12 verified, 0 errors), `Int64Fibonacci.dfy` (15 verified, 0 errors), and `IterativeFibonacci.dfy` (12 verified, 0 errors). The iterative executable also produced `F(0)=0`, `F(1)=1`, `F(2)=1`, and `F(100)=354224848179261915075`, and exited successfully. These verification counts are per invocation and may include checks of included dependencies; they should not be interpreted as 39 distinct specifications.
+
+The proofs do not establish machine-code correctness, elapsed-time performance, memory bounds, or arbitrary-precision bit complexity. The reported timings in Section D are measurements from the original report, not the independent rerun. Further details are in `docs/complexity.md` and `docs/safety.md`.
