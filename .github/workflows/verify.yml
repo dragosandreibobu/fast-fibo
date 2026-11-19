@@ -26,3 +26,6 @@ jobs:
 
       - name: Verify Level 3 signed-64-bit safety
         run: dafny verify src/Int64Fibonacci.dfy
+
+      - name: Verify Level 4 iterative implementation
+        run: dafny verify src/IterativeFibonacci.dfy
