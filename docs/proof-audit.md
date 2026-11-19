@@ -15,7 +15,7 @@ dafny verify src/FastFibonacci.dfy
 dafny verify src/Int64Fibonacci.dfy
 ```
 
-The job succeeded. The logs record **16 verified, 0 errors** for `FastFibonacci.dfy` and **15 verified, 0 errors** for `Int64Fibonacci.dfy`. These are *verifier-reported counts*, not counts of named lemmas and not evidence of execution benchmarks. The later report-only commits do not change the proof-bearing source.
+The job succeeded. The logs record **16 verified, 0 errors** for `FastFibonacci.dfy` and **15 verified, 0 errors** for `Int64Fibonacci.dfy`. These are *verifier-reported counts*, not counts of named lemmas and not evidence of execution benchmarks. The final combined source additionally sets an explicit 120-second SMT limit for `Addition` to handle a Windows default-budget timeout. Independent verification of the combined sources produced 16, 15, and 12 verified with zero errors (recursive, signed-64-bit, and iterative, respectively).
 
 ## Contract-by-contract findings
 
@@ -45,7 +45,7 @@ For positive `n:nat`, the recursive input `k=n/2` satisfies `k<n`; the code asse
 - It proves correctness for **every mathematical natural index**, but it does not prove that an actual fixed-width executable computing `Fib(n)` will avoid overflow at arbitrary `n`.
 - The step counter proves recursive *call count* (specifically, non-base-case calls), not exact processor time, total bit operations, allocation cost, or `O(log n)` full machine-level runtime.
 - `Int64Fibonacci.dfy` proves representability of explicitly modeled intermediates using a refinement of mathematical integers. This is a separate bounded implementation and not a compiler- or machine-code semantics theorem.
-- An additional iterative proof is **not** established by this audit. Issues #2–#3 own its implementation and loop invariants, and issue #5 owns the consolidated report results.
+- The iterative proof is established separately by `src/IterativeFibonacci.dfy` (12 verified, 0 errors), with loop invariants and termination, and is integrated with the recursive proof in the final report.
 
 ## Reproduction
 
@@ -58,4 +58,4 @@ The CI workflow uses `dafny-lang/setup-dafny-action@v1` pinned to Dafny 4.11.0. 
 
 ## Final-report integration
 
-Sections **B** and **C.1–C.4** of `docs/report.md` describe the reviewed specifications, proofs, and model. Section **C.5** is deliberately reserved for the collaborator's iterative work. The jointly edited Section **E** should discuss proof-engineering tradeoffs and the limitations above. Section **D** must be refreshed from final merged verification runs by the assigned collaborator.
+Sections **B** and **C.1–C.4** of `docs/report.md` describe the reviewed specifications and recursive proofs; **C.5** now documents the completed iterative proof. Sections **D** and **E** contain the combined verification evidence and proof-engineering discussion. The general-addition lemma has a `{:timeLimit 120}` verification attribute to prevent the default 30-second solver timeout observed on Windows; this is a resource limit, not an assumption.

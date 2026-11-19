@@ -8,11 +8,12 @@ module FastFibonacci {
     if n < 2 then n else Fib(n - 1) + Fib(n - 2)
   }
 
+  // Larger solver budget on this optional general identity for cross-platform stability.
   // General Fibonacci addition formula, proved directly from the
   // independent recurrence (not from the fast-doubling algorithm):
   // F(m+n+1) = F(m+1)F(n+1) + F(m)F(n).
   // This single theorem also implies both doubling identities.
-  lemma Addition(m: nat, n: nat)
+  lemma {:timeLimit 120} Addition(m: nat, n: nat)
     ensures Fib(m + n + 1) ==
             Fib(m + 1) * Fib(n + 1) + Fib(m) * Fib(n)
     decreases m

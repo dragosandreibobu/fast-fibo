@@ -1,13 +1,9 @@
-# Dafny build artifacts
-.dafny/
-*.dll
-*.pdb
-*.deps.json
-*.runtimeconfig.json
-*.trace
-
-# OS / editors
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
+# Dafny-generated executable/C# build artifacts
+src/*.cs
+src/*.csproj
+src/*.exe
+src/*.dll
+src/*.runtimeconfig.json
+src/*.deps.json
+src/obj/
+src/bin/

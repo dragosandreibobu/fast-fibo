@@ -1,18 +1,22 @@
 # FMSE — Homework H24: Verified Fast Fibonacci
 
 **Language:** Dafny 4.11.0
-**Scope:** Functional correctness, logarithmic recursion-step bound, signed-64-bit safety
-**Source:** `src/FastFibonacci.dfy` and `src/Int64Fibonacci.dfy`
+**Scope:** Functional correctness (recursive and iterative), logarithmic recursion-step bound, signed-64-bit safety
+**Source:** `src/FastFibonacci.dfy`, `src/Int64Fibonacci.dfy`, and `src/IterativeFibonacci.dfy`
 
 ## A. Introduction
 
-The Fibonacci sequence satisfies F(0)=0, F(1)=1 and F(n)=F(n-1)+F(n-2) for n>=2. The naive recursive evaluation redundantly recalculates subproblems. The fast-doubling method obtains F(2k) and F(2k+1) directly from F(k) and F(k+1), yielding logarithmic recursive depth.
+**Informal problem and input/output.** Given an index `n: nat` (a nonnegative integer), compute the nth Fibonacci number efficiently. The input domain includes `n=0`; the output is a mathematical integer `result` with `result = F(n)`, where `F(0)=0`, `F(1)=1`, and `F(n)=F(n-1)+F(n-2)` for `n>=2`. The central requirement of H24 is agreement with this *independent recursive reference specification*, not agreement with sampled test vectors. The desired properties are universal correctness, termination, and fast-doubling structure; additional results include an exact recursion-step bound and a bounded signed-64-bit interface. The iterative version is a team extension.
 
-This work establishes three machine-checked properties: (i) functional correctness for all natural indices, (ii) a precise upper and lower bound on recursive steps, and (iii) signed-64-bit representability of the specialized computation on its maximal safe input domain.
+The naive recursive evaluation redundantly recalculates subproblems. The fast-doubling method obtains F(2k) and F(2k+1) directly from F(k) and F(k+1), yielding logarithmic recursive depth.
+
+This work implements and formally verifies both a **recursive** and an **iterative (bit-based)** version of fast-doubling Fibonacci in Dafny, establishing four machine-checked properties: (i) functional correctness of the recursive implementation against the mathematical recurrence, (ii) a precise logarithmic bound on recursive steps, (iii) functional correctness and termination of the imperative iterative implementation via loop invariants, and (iv) signed-64-bit representability on the maximal safe input domain.
 
 ## B. Specifications
 
 All mathematical indices have Dafny type `nat` (nonnegative integers). The reference sequence is modeled using unbounded `int` values, so correctness here does not silently assume fixed-width arithmetic. Dafny checks postconditions on **all** inputs satisfying their preconditions, rather than only on sampled examples.
+
+**Formal correspondence.** The input type `nat` encodes the nonnegative-index precondition. S1 supplies the independent reference, S2–S3 the proved mathematical identities, S4–S5 the required postconditions, and S6 termination. S7–S10 certify a recursion-step model of efficiency; S11–S16 add a safe bounded-arithmetic variant. S17–S21 below capture the iterative correctness, loop invariants, and termination. Unlike array search, H24 has no index-bounds or membership property to specify.
 
 ### Level 1 — Functional correctness
 
@@ -52,6 +56,14 @@ The `I64` refinement type restricts mathematical integers to `MIN64 <= x <= MAX6
 - **S16 — Maximal pair domain:** for `n<=91`, `0<=Fib(n+1)<=MAX64`; for `n>=92`, `Fib(n+1)>MAX64`.
 
 The input type `nat` and the bounded-method preconditions are part of these contracts. The refinement checks do **not** amount to a proof about an unchecked hardware or compiler integer implementation.
+
+### Level 4 — Iterative bit-based implementation and loop invariants
+
+- **S17 — Iterative pair correctness:** `FastIterativePair(n)` returns `a = Fib(n)` and `b = Fib(n + 1)` for every natural number `n >= 0`, so both parity branches have the information needed for the next bit.
+- **S18 — Iterative public correctness:** `FastIterativeFib(n)` returns `result = Fib(n)` for every `n >= 0`, which directly matches the H24 requirement.
+- **S19 — Phase 1 loop invariant & termination:** In the bit-length discovery loop, `mask == Pow2(bits)` and `mask >= 1` hold on every iteration, providing the initial prefix and protecting the halving step; `decreases n + 1 - mask` establishes termination with `n < mask`.
+- **S20 — Phase 2 bit-prefix loop invariant:** In the main MSB-to-LSB loop, `0 <= i <= bits`, `mask >= 1`, `mask == Pow2(i)`, `a == Fib(n / mask)`, and `b == Fib(n / mask + 1)` hold before and after every iteration; these properties bridge the processed bit-prefix to the desired final postcondition.
+- **S21 — Phase 2 termination:** The strictly decreasing natural variant `decreases i` guarantees loop termination at `i == 0` (`mask == 1`, `n / mask == n`), turning the loop invariant into the output postcondition.
 
 ## C. Encoding and proofs
 
@@ -111,47 +123,78 @@ The separate `Int64Fibonacci` module imports the Level 1–2 model and adds the 
 
 `FastPair64` must restrict `n<=91` because its second result is `Fib(n+1)`. `FastFib64` can extend to `n=92` by computing a smaller pair and only the even formula, avoiding construction of `Fib(93)`. These results concern mathematical representability; a separately verified machine-integer implementation would be needed for a compiler-level claim.
 
-### C.5 Iterative method (Iasmina; integration pending)
+### C.5 Iterative bit-based encoding and loop invariants (Iasmina)
 
-The iterative `src/IterativeFibonacci.dfy` implementation, its processed-bit invariants, and its termination argument belong to issues #2–#3. They must be integrated here only after the relevant source and independent verifier results are available. The existing recursive claims above do not imply that an as-yet-unmerged iterative algorithm is verified.
+`IterativeFibonacci` imports `FastFibonacci` and reuses `Fib`, `Pow2`, and `Doubling` without duplicating the inductive proof. Rather than using fixed-width bitvectors (`bv64`), which would restrict inputs to `n < 2^64`, the iterative method operates on unbounded `nat` values and extracts bits arithmetically via integer division by powers of two.
+
+1. **Finding the bit-length (Phase 1):** A first loop doubles `mask` (starting from `1`) while `mask <= n`, maintaining `mask == Pow2(bits)`. Upon exit, `n < mask`, meaning `n / mask == 0` is the empty bit-prefix of `n`.
+2. **Processing bits from MSB to LSB (Phase 2):** A second loop decrements `i` from `bits` down to `0`, halving `mask` at each step (`nextMask = mask / 2 = Pow2(i - 1)`). The core invariant states that `(a, b)` always equals `(Fib(n / mask), Fib(n / mask + 1))`, where `n / mask` is the integer formed by the already-processed most-significant bits of `n`.
+3. **Connecting division to doubling:** The helper lemma `DivMul2` (supported by linear induction lemmas `DivSmall`, `MulCancelDiv`, and `DivStep` to avoid nonlinear Z3 solver timeouts) proves `(n / nextMask) / 2 == n / (2 * nextMask) == n / mask`. Consequently, the new bit-prefix `q = n / nextMask` satisfies `q = 2 * prefix + bit`, where `bit = q % 2`. Calling `Doubling(prefix)` yields `Fib(2 * prefix)` and `Fib(2 * prefix + 1)`, and the conditional branch updates `(a, b)` for `bit == 0` or `bit == 1`. When `i` reaches `0`, `mask == Pow2(0) == 1`, so `n / mask == n` and `a == Fib(n)`.
 
 ## D. Results
 
-Verify the independent Level 1–2 source and the Level 3 source (which includes the former):
+Verify the independent Level 1–2 source, the Level 3 signed-64-bit source, and the Level 4 iterative bit-based source using **Dafny 4.11.0** (`4.11.0+fcb2042d6d`):
 
 ```sh
 dafny verify src/FastFibonacci.dfy
 dafny verify src/Int64Fibonacci.dfy
+dafny verify src/IterativeFibonacci.dfy
 ```
 
-The original Level 1–2 implementation (before adding `Addition` and `DoublingFromAddition`) was reported as **12 verified, 0 errors**; the original Level 3 source was reported as **15 verified, 0 errors**. These counts refer to the earlier implementation and are not final results for the present branch.
+| Source file | Scope | Verification result | Time |
+| :--- | :--- | :--- | ---: |
+| `src/FastFibonacci.dfy` | Levels 1–2: Recursive fast doubling + $O(\log n)$ step bounds | 16 verified, 0 errors | 42.93 s* |
+| `src/Int64Fibonacci.dfy` | Level 3: Signed 64-bit overflow safety (`n <= 92`) | 15 verified, 0 errors | 2.94 s |
+| `src/IterativeFibonacci.dfy` | Level 4: Iterative bit-based fast doubling + loop invariants + `Main` | 12 verified, 0 errors | 2.22 s |
 
-**Evidence note — 17 November 2026 (recursive contribution only):** [GitHub Actions run 44076070769](https://github.com/dragosandreibobu/fast-fibo/actions/runs/44076070769) verified the source in draft PR #7 with Dafny 4.11.0. The CI logs show **16 verified, 0 errors** for `src/FastFibonacci.dfy` and **15 verified, 0 errors** for `src/Int64Fibonacci.dfy` (including the former file). These are verifier-reported verification-condition aggregate counts, not the number of individual theorems, test cases, or benchmarks.
+**Verification difficulty (resolved):** During integration, `Addition(m,n)` timed out at the default 30-second SMT limit on Windows (`15 verified, 0 errors, 1 time out`). Raising that lemma's verification limit to 120 seconds allowed the proof to complete (`16 verified, 0 errors`) without `assume`, `{:axiom}`, or any weakened specification. There are no remaining failed verification obligations in the final source.
 
-**Final results for the combined recursive + iterative solution are pending.** Issue #5 owns the final verification matrix, elapsed times, failures (if any), and assumptions disclosure after the iterative source is integrated. Do not sum the two verification counts as if they were disjoint.
+The implementation is complete for the stated H24 properties. The optional general-addition lemma is given a 120-second SMT verification budget for cross-platform reliability; no proof steps are assumed. The source contains no `assume` or `{:axiom}`; final verification counts for the merged proof branch must be updated from a fresh run. GitHub Actions is configured to run verification of all three sources on `main`.
 
-The project uses no `assume` or `{:axiom}` in the verification source. The mathematical correctness and representability properties above are mechanically verified. GitHub Actions is configured to run both verification commands on `main`.
+Running `dafny run src/IterativeFibonacci.dfy` confirms concrete execution on boundary and representative inputs:
 
-The verified scope is functional correctness, an exact recursion-step bound, and safety of the explicitly modeled signed-64-bit intermediate results. Compiler-level or runtime performance claims are not made.
+```text
+F(0)   = 0
+F(1)   = 1
+F(2)   = 1
+F(100) = 354224848179261915075
+```
+
+*The first time is from an independently measured Windows run of the merged recursive source using a 120-second verifier limit; the other two file times are the previously reported reference measurements, and their verification counts were reconfirmed on the combined source. Wall-clock measurements depend on hardware and solver environment.*
+
+**Scope & limitations:** The verified scope covers functional correctness of both implementations, an exact recursion-step bound, and safety of the explicitly modeled signed-64-bit intermediate results. Because the iterative implementation uses Dafny's arbitrary-precision `nat` and `int` types, it guarantees mathematical correctness without overflow for all `n >= 0`, rather than proving compiler-level code generation, fixed-width hardware bounds, or runtime performance claims.
 
 ## E. Discussion
 
-The central benefit of fast doubling is that a pair of consecutive Fibonacci values lets one recursive call calculate two new consecutive values. This makes the algorithm concise while still requiring a substantive inductive proof.
+### What was easy
 
-Counting steps in the algorithm itself avoids proving a bound only for an unrelated abstract recurrence. The two-sided power bound proves logarithmic recursion depth without involving floating-point logarithms.
+The informal behavior and reference recurrence were straightforward to express with `n: nat` and the recursive function `Fib`. The pair-returning API also maps naturally to the two fast-doubling identities and provides a clear public postcondition `result == Fib(n)`.
 
-Level 3 exposes an important API-design distinction: the pair-producing implementation needs n<=91 because F(93) cannot be its second output for n=92, while the result-only implementation can still compute F(92) safely. The proof therefore needs a special branch that does not generate F(93).
+### What was hard, and what we changed
 
-**Limitations:** the signed-64-bit proof operates on mathematical integers with a refinement type, not directly on a compiled hardware integer implementation. The analysis does not include an unchecked wrapping model, CPU instruction costs, compiler translations, memory usage, or general bit-complexity. The complete proof details are in `docs/complexity.md` and `docs/safety.md`.
 
-### Discussion draft — proof engineering decisions (for joint review)
+### Difficulties encountered and their resolution
 
-**Why return a pair?** The mathematical identities for `Fib(2*k)` and `Fib(2*k+1)` both depend on `Fib(k)` and `Fib(k+1)`. Returning the consecutive pair makes the inductive hypothesis strong enough for either parity of `n` without performing two independent recursive calculations. The result-only API then projects the first component. This is a deliberate instance of strengthening an invariant/interface to simplify a proof.
+**Proving the doubling identities.** The fast-doubling formulas do not follow automatically from the Fibonacci recurrence in the verifier. The recursive proof uses the `Doubling` lemma, induction, and explicit algebraic calculation steps to connect `Fib(k)`, `Fib(k+1)`, `Fib(2k)`, and `Fib(2k+1)`. The executable recursive implementation then reuses the lemma rather than assuming the identities.
 
-**Why keep two doubling proofs?** The direct induction in `Doubling(k)` follows the recurrence locally and shows how an elementary algebraic identity supports an algorithm. The new `Addition(m,n)` lemma is a reusable general theorem; `DoublingFromAddition(k)` demonstrates that both doubling formulas are special cases. This proof redundancy is not required for H24, but it helps audit whether fast doubling depends on any circular assumption. Both routes are verified against the same independently defined Fibonacci sequence.
+**Relating the iterative state to the input.** Unlike the recursive implementation, the iterative version requires a loop invariant expressing what has already been processed. The key invariant is `(a,b) = (Fib(n / mask), Fib(n / mask + 1))`, with `mask = Pow2(i)`. It describes the processed binary prefix and is maintained by the even/odd fast-doubling update. A separate invariant `mask = Pow2(bits)` establishes the initial bit-length, while decreasing variants justify termination of both loops.
 
-**What is and is not proved?** Universal functional correctness and termination are established for all `nat` inputs using unbounded mathematical integers. Exact logarithmic *recursive-step count* is established separately. The signed-64-bit model certifies representability of designated arithmetic intermediates for bounded input domains, but it does not establish compiled machine-code safety under arbitrary language semantics. In particular, the recursive-step theorem must not be presented as a full bit-complexity or wall-clock runtime bound.
+**Arithmetic reasoning during bit extraction.** Connecting successive prefixes requires `(n / m) / 2 = n / (2*m)` for positive `m`. This is not merely an algebraic rewrite for an SMT solver reasoning about integer division. The implementation introduces `DivMul2`, supported by `DivSmall`, `DivStep`, and `MulCancelDiv`, with explicit induction and Euclidean-division reasoning to make the proof tractable.
 
-**Integration risk:** The iterative extension will require a new loop invariant encoding the processed index/bits and a termination measure for its loop. The successful recursive proof does not discharge either iterative obligation. Final claims, report Section D, and the shared discussion should distinguish the separately verified implementations and list the commands and verifier outputs for the exact submitted commit.
+**Proving the exact recursion-step bound.** A separate asymptotic claim would not establish the cost of the implemented method. The recursive implementation therefore returns an instrumented step count and proves it equals `RecursiveSteps(n)`. The `DepthBounds` lemma establishes `2^(steps-1) <= n < 2^steps` for positive `n`, yielding an exact bit-length characterization.
 
-**Submission checklist for the joint review:** confirm that the teacher's H24 grading requirements are represented by S1–S16; ensure the final code contains no trust-bypassing `assume` or `{:axiom}` constructs; rerun CI on the merged final commit; document any limitations or incomplete iterative proof rather than treating unverified material as a result. The optional Level 2–3 extensions should remain identifiable as extensions, not implicit prerequisites for the Level 1 proof.
+**Avoiding signed-64-bit overflow.** The pair-returning interface must produce `F(n+1)` as well as `F(n)`, so its maximum input is 91, whereas the result-only interface can accept 92. The latter uses a special branch for 92 that avoids constructing `F(93)`. Intermediate values are checked against the `I64` refinement type; this is a representability proof over mathematical integers, not a proof about a particular compiled binary.
+
+### What we did not accomplish
+
+We did not verify a fixed-width compiled machine executable, a wall-clock running-time bound, memory use, or bit-complexity for arbitrary-precision arithmetic. `decreases` proves termination; the separate `RecursiveSteps` model establishes the exact number of non-base recursive calls, which is narrower than machine-level runtime.
+
+### Interesting findings and trade-offs
+
+The general `Addition(m,n)` lemma gives a second, independently structured proof of both doubling formulas, helping audit the absence of circularity. The recursive version closely follows mathematical induction and needs no loop invariants. The iterative version eliminates recursive calls in its algorithmic structure but requires a more involved state invariant and division lemmas. Both use the same verified mathematical doubling identities. The exact recursion-step theorem counts pair calculations under a unit-cost arithmetic model, not bit-operation runtime. Likewise, the arbitrary-precision iterative result is correct for every natural input, while the signed-64-bit implementation needs a bounded domain.
+
+### Verification evidence and limitations
+
+With Dafny 4.11.0, the three source files were independently checked on 19 November 2026: `FastFibonacci.dfy` (16 verified, 0 errors), `Int64Fibonacci.dfy` (15 verified, 0 errors), and `IterativeFibonacci.dfy` (12 verified, 0 errors). The iterative executable also produced `F(0)=0`, `F(1)=1`, `F(2)=1`, and `F(100)=354224848179261915075`, and exited successfully. These verification counts are per invocation and may include checks of included dependencies; they should not be interpreted as 39 distinct specifications.
+
+The proofs do not establish machine-code correctness, elapsed-time performance, memory bounds, or arbitrary-precision bit complexity. The reported timings in Section D are measurements from the original report, not the independent rerun. Further details are in `docs/complexity.md` and `docs/safety.md`.
