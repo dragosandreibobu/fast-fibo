@@ -37,6 +37,16 @@ F(2k+1) = a*a+b*b
 
 The implementation `FastPair(n)` returns `F(n)` and `F(n+1)` by recursion on `floor(n/2)`. The public method `FastFib(n)` returns the correct value of `F(n)` for all natural n.
 
+The project additionally proves the general **Fibonacci addition formula** from the original recursive reference:
+
+```text
+F(m+n+1) = F(m+1)*F(n+1) + F(m)*F(n)
+```
+
+`Addition(m,n)` proves the identity by induction on `m`. `DoublingFromAddition(k)` then derives the two doubling identities algebraically without invoking the original `Doubling(k)` lemma. Keeping both the inductive and general-theorem derivations provides independently structured proof arguments for the same formulas; the executable algorithm continues using the original `Doubling` proof.
+
+The contract-by-contract verification audit is available in [`docs/proof-audit.md`](docs/proof-audit.md).
+
 ## Level 2: exact logarithmic bound
 
 `FastPair` also returns a count `steps` of non-base-case recursive calls. Dafny verifies that it matches an independent counting specification and, for n>0:
@@ -78,6 +88,7 @@ A complete proof of representability is **not** the same as verifying a particul
 - [`docs/complexity.md`](docs/complexity.md) — logarithmic bound and proof explanation
 - [`docs/safety.md`](docs/safety.md) — 64-bit model, exact boundaries, safe intermediate operations
 - [`docs/report.md`](docs/report.md) — FMSE homework report (sections A–E)
+- [`docs/proof-audit.md`](docs/proof-audit.md) — proof dependencies, contract audit, and verification evidence
 - [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — reproducible CI
 
 **Scope:** nonnegative indices; mathematical integer semantics with range checks; no claims of fixed machine runtime or correctness of an unchecked overflowing executable.

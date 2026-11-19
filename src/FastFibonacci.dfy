@@ -8,6 +8,71 @@ module FastFibonacci {
     if n < 2 then n else Fib(n - 1) + Fib(n - 2)
   }
 
+  // Larger solver budget on this optional general identity for cross-platform stability.
+  // General Fibonacci addition formula, proved directly from the
+  // independent recurrence (not from the fast-doubling algorithm):
+  // F(m+n+1) = F(m+1)F(n+1) + F(m)F(n).
+  // This single theorem also implies both doubling identities.
+  lemma {:timeLimit 120} Addition(m: nat, n: nat)
+    ensures Fib(m + n + 1) ==
+            Fib(m + 1) * Fib(n + 1) + Fib(m) * Fib(n)
+    decreases m
+  {
+    if m == 0 {
+      assert Fib(0) == 0;
+      assert Fib(1) == 1;
+    } else if m == 1 {
+      assert Fib(1) == 1;
+      assert Fib(2) == 1;
+      assert Fib(n + 2) == Fib(n + 1) + Fib(n);
+    } else {
+      Addition(m - 1, n);
+      Addition(m - 2, n);
+      assert Fib(m + n + 1) == Fib(m + n) + Fib(m + n - 1);
+      assert Fib(m + 1) == Fib(m) + Fib(m - 1);
+      assert Fib(m) == Fib(m - 1) + Fib(m - 2);
+      calc {
+        Fib(m + n + 1);
+        ==
+        Fib(m + n) + Fib(m + n - 1);
+        ==
+        (Fib(m) * Fib(n + 1) + Fib(m - 1) * Fib(n)) +
+        (Fib(m - 1) * Fib(n + 1) + Fib(m - 2) * Fib(n));
+        ==
+        (Fib(m) + Fib(m - 1)) * Fib(n + 1) +
+        (Fib(m - 1) + Fib(m - 2)) * Fib(n);
+        ==
+        Fib(m + 1) * Fib(n + 1) + Fib(m) * Fib(n);
+      }
+    }
+  }
+
+  // An independent algebraic route to fast doubling from Addition.
+  // Keep the original inductive Doubling proof below as an alternative.
+  lemma DoublingFromAddition(k: nat)
+    ensures Fib(2 * k) == Fib(k) * (2 * Fib(k + 1) - Fib(k))
+    ensures Fib(2 * k + 1) == Fib(k) * Fib(k) + Fib(k + 1) * Fib(k + 1)
+  {
+    Addition(k, k);
+    assert Fib(2 * k + 1) ==
+           Fib(k + 1) * Fib(k + 1) + Fib(k) * Fib(k);
+    if k == 0 {
+      assert Fib(0) == 0;
+    } else {
+      Addition(k, k - 1);
+      assert Fib(k + 1) == Fib(k) + Fib(k - 1);
+      calc {
+        Fib(2 * k);
+        ==
+        Fib(k + 1) * Fib(k) + Fib(k) * Fib(k - 1);
+        ==
+        Fib(k) * (Fib(k + 1) + Fib(k - 1));
+        ==
+        Fib(k) * (2 * Fib(k + 1) - Fib(k));
+      }
+    }
+  }
+
   // The fast-doubling identities are proved by induction on k.
   lemma Doubling(k: nat)
     ensures Fib(2 * k) == Fib(k) * (2 * Fib(k + 1) - Fib(k))
