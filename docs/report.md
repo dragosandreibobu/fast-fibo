@@ -195,6 +195,5 @@ The general `Addition(m,n)` lemma gives a second, independently structured proof
 
 ### Verification evidence and limitations
 
-With Dafny 4.11.0, the three source files were independently checked on 19 November 2026: `FastFibonacci.dfy` (16 verified, 0 errors), `Int64Fibonacci.dfy` (15 verified, 0 errors), and `IterativeFibonacci.dfy` (12 verified, 0 errors). The iterative executable also produced `F(0)=0`, `F(1)=1`, `F(2)=1`, and `F(100)=354224848179261915075`, and exited successfully. These verification counts are per invocation and may include checks of included dependencies; they should not be interpreted as 39 distinct specifications.
+With Dafny 4.11.0, the three source files were independently checked on 19 November 2026: `FastFibonacci.dfy` (16 verified, 0 errors), `Int64Fibonacci.dfy` (15 verified, 0 errors), and `IterativeFibonacci.dfy` (12 verified, 0 errors). The iterative executable also produced `F(0)=0`, `F(1)=1`, `F(2)=1`, and `F(100)=354224848179261915075`, and exited successfully. These verification counts are per invocation and may include checks of included dependencies; they should not be interpreted as 43 distinct specifications.
 
-The proofs do not establish machine-code correctness, elapsed-time performance, memory bounds, or arbitrary-precision bit complexity. Section D identifies the independently measured recursive verification time and distinguishes the other timings as earlier reference measurements. Further details are in `docs/complexity.md` and `docs/safety.md`.
