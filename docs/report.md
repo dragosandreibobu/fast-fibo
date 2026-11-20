@@ -20,12 +20,12 @@ All mathematical indices have Dafny type `nat` (nonnegative integers). The refer
 
 ### Level 1 — Functional correctness
 
-- **S1 — Mathematical reference:** `Fib(0)=0`, `Fib(1)=1`, and for `n>=2`, `Fib(n)=Fib(n-1)+Fib(n-2)`. The recursive `function Fib(n: nat): int` terminates using `decreases n` and serves as a specification independent of the fast algorithm.
-- **S2 — Even doubling:** for every `k: nat`, `Fib(2*k) == Fib(k)*(2*Fib(k+1)-Fib(k))`.
-- **S3 — Odd doubling:** for every `k: nat`, `Fib(2*k+1) == Fib(k)*Fib(k)+Fib(k+1)*Fib(k+1)`.
-- **S4 — Pair postconditions:** `FastPair(n)` ensures `x==Fib(n)` and `y==Fib(n+1)` (as well as a count specified in S7).
-- **S5 — Public result postcondition:** `FastFib(n)` ensures `result==Fib(n)` for every `n: nat`, including zero.
-- **S6 — Recursive termination:** `Doubling(k)` decreases its natural-number induction argument, and `FastPair(n)` recurses only on `n/2<n` when `n>0`.
+- **S1 — Mathematical reference:** `Fib(0)=0`, `Fib(1)=1`, and for `n>=2`, `Fib(n)=Fib(n-1)+Fib(n-2)`. The recursive `function Fib(n: nat): int` terminates using `decreases n` and serves as a specification independent of the fast algorithm. **Why needed:** It defines the independent mathematical meaning of correctness and prevents circular specification.
+- **S2 — Even doubling:** for every `k: nat`, `Fib(2*k) == Fib(k)*(2*Fib(k+1)-Fib(k))`. **Why needed:** It justifies computing the even-index result from one smaller Fibonacci pair.
+- **S3 — Odd doubling:** for every `k: nat`, `Fib(2*k+1) == Fib(k)*Fib(k)+Fib(k+1)*Fib(k+1)`. **Why needed:** It supplies the odd-index result needed for either parity of the input.
+- **S4 — Pair postconditions:** `FastPair(n)` ensures `x==Fib(n)` and `y==Fib(n+1)` (as well as a count specified in S7). **Why needed:** The stronger pair contract provides both consecutive values required in the next doubling step.
+- **S5 — Public result postcondition:** `FastFib(n)` ensures `result==Fib(n)` for every `n: nat`, including zero. **Why needed:** This is the central H24 property: the optimized result agrees with the recursive reference.
+- **S6 — Recursive termination:** `Doubling(k)` decreases its natural-number induction argument, and `FastPair(n)` recurses only on `n/2<n` when `n>0`. **Why needed:** It proves total correctness for every natural input, rather than for a finite set of tests.
 
 **Supporting mathematical theorem:** `Addition(m,n)` proves, without any preconditions beyond `m,n: nat`,
 
@@ -37,10 +37,10 @@ The independent `DoublingFromAddition(k)` lemma establishes S2 and S3 from this 
 
 ### Level 2 — Logarithmic recursion-step complexity
 
-- **S7 — Instrumented step count:** `FastPair(n)` ensures `steps==RecursiveSteps(n)`, with `RecursiveSteps(0)=0` and `RecursiveSteps(n)=1+RecursiveSteps(n/2)` for `n>0`.
-- **S8 — Sign and base case:** `RecursiveSteps(0)==0` and `RecursiveSteps(n)>0` for `n>0`.
-- **S9 — Lower power bound:** for `n>0`, `Pow2(steps-1)<=n`.
-- **S10 — Upper power bound:** for `n>0`, `n<Pow2(steps)`.
+- **S7 — Instrumented step count:** `FastPair(n)` ensures `steps==RecursiveSteps(n)`, with `RecursiveSteps(0)=0` and `RecursiveSteps(n)=1+RecursiveSteps(n/2)` for `n>0`. **Why needed:** It connects the proved step count to instrumentation of the implementation itself.
+- **S8 — Sign and base case:** `RecursiveSteps(0)==0` and `RecursiveSteps(n)>0` for `n>0`. **Why needed:** It treats the zero edge case separately and establishes positivity for the logarithmic bounds.
+- **S9 — Lower power bound:** for `n>0`, `Pow2(steps-1)<=n`. **Why needed:** Together with S10 it bounds the exact bit length represented by the returned count.
+- **S10 — Upper power bound:** for `n>0`, `n<Pow2(steps)`. **Why needed:** Together with S9 it characterizes the count exactly, not merely asymptotically.
 
 `FastFibWithSteps(n)` combines S5 and S7–S10 in its postconditions. The two power bounds uniquely characterize the bit length `floor(log2(n))+1` for `n>0`. The counted quantity is non-base-case recursive calls, **not** CPU time or arbitrary-precision multiplication cost.
 
@@ -48,22 +48,22 @@ The independent `DoublingFromAddition(k)` lemma establishes S2 and S3 from this 
 
 The `I64` refinement type restricts mathematical integers to `MIN64 <= x <= MAX64`, where `MIN64=-2^63` and `MAX64=2^63-1`.
 
-- **S11 — Range of explicitly modeled intermediates:** each intermediate assigned to `I64` in the bounded implementations has a verified signed-64-bit range.
-- **S12 — Pair precondition and result:** `FastPair64(n)` requires `n<=91` and ensures `x==Fib(n)` and `y==Fib(n+1)`.
-- **S13 — Result-only precondition and result:** `FastFib64(n)` requires `n<=92` and ensures `result==Fib(n)`.
-- **S14 — Exact boundary:** `Fib(92)=7540113804746346429 <= MAX64` and `Fib(93)=12200160415121876738 > MAX64`.
-- **S15 — Maximal result domain:** for `n<=92`, `0<=Fib(n)<=MAX64`; for `n>=93`, `Fib(n)>MAX64`.
-- **S16 — Maximal pair domain:** for `n<=91`, `0<=Fib(n+1)<=MAX64`; for `n>=92`, `Fib(n+1)>MAX64`.
+- **S11 — Range of explicitly modeled intermediates:** each intermediate assigned to `I64` in the bounded implementations has a verified signed-64-bit range. **Why needed:** It gives checked-integer meaning to every explicitly modeled arithmetic intermediate.
+- **S12 — Pair precondition and result:** `FastPair64(n)` requires `n<=91` and ensures `x==Fib(n)` and `y==Fib(n+1)`. **Why needed:** Returning F(n+1) constrains the pair interface to indices at most 91.
+- **S13 — Result-only precondition and result:** `FastFib64(n)` requires `n<=92` and ensures `result==Fib(n)`. **Why needed:** It admits n=92 by avoiding construction of the larger, unrepresentable F(93).
+- **S14 — Exact boundary:** `Fib(92)=7540113804746346429 <= MAX64` and `Fib(93)=12200160415121876738 > MAX64`. **Why needed:** These concrete values establish the transition from representable to non-representable outputs.
+- **S15 — Maximal result domain:** for `n<=92`, `0<=Fib(n)<=MAX64`; for `n>=93`, `Fib(n)>MAX64`. **Why needed:** It proves that the result-only input domain is maximal for signed 64-bit values.
+- **S16 — Maximal pair domain:** for `n<=91`, `0<=Fib(n+1)<=MAX64`; for `n>=92`, `Fib(n+1)>MAX64`. **Why needed:** It proves that the pair-producing input domain is maximal.
 
 The input type `nat` and the bounded-method preconditions are part of these contracts. The refinement checks do **not** amount to a proof about an unchecked hardware or compiler integer implementation.
 
 ### Level 4 — Iterative bit-based implementation and loop invariants
 
-- **S17 — Iterative pair correctness:** `FastIterativePair(n)` returns `a = Fib(n)` and `b = Fib(n + 1)` for every natural number `n >= 0`, so both parity branches have the information needed for the next bit.
-- **S18 — Iterative public correctness:** `FastIterativeFib(n)` returns `result = Fib(n)` for every `n >= 0`, which directly matches the H24 requirement.
-- **S19 — Phase 1 loop invariant & termination:** In the bit-length discovery loop, `mask == Pow2(bits)` and `mask >= 1` hold on every iteration, providing the initial prefix and protecting the halving step; `decreases n + 1 - mask` establishes termination with `n < mask`.
-- **S20 — Phase 2 bit-prefix loop invariant:** In the main MSB-to-LSB loop, `0 <= i <= bits`, `mask >= 1`, `mask == Pow2(i)`, `a == Fib(n / mask)`, and `b == Fib(n / mask + 1)` hold before and after every iteration; these properties bridge the processed bit-prefix to the desired final postcondition.
-- **S21 — Phase 2 termination:** The strictly decreasing natural variant `decreases i` guarantees loop termination at `i == 0` (`mask == 1`, `n / mask == n`), turning the loop invariant into the output postcondition.
+- **S17 — Iterative pair correctness:** `FastIterativePair(n)` returns `a = Fib(n)` and `b = Fib(n + 1)` for every natural number `n >= 0`, so both parity branches have the information needed for the next bit. **Why needed:** This universal pair postcondition is the iterative counterpart of S4.
+- **S18 — Iterative public correctness:** `FastIterativeFib(n)` returns `result = Fib(n)` for every `n >= 0`, which directly matches the H24 requirement. **Why needed:** This directly discharges the H24 correctness requirement for the iterative interface.
+- **S19 — Phase 1 loop invariant & termination:** In the bit-length discovery loop, `mask == Pow2(bits)` and `mask >= 1` hold on every iteration, providing the initial prefix and protecting the halving step; `decreases n + 1 - mask` establishes termination with `n < mask`. **Why needed:** The invariant establishes the unprocessed initial prefix; the decreasing measure proves loop termination.
+- **S20 — Phase 2 bit-prefix loop invariant:** In the main MSB-to-LSB loop, `0 <= i <= bits`, `mask >= 1`, `mask == Pow2(i)`, `a == Fib(n / mask)`, and `b == Fib(n / mask + 1)` hold before and after every iteration; these properties bridge the processed bit-prefix to the desired final postcondition. **Why needed:** The prefix equations express exactly what the partial iterative state means and support its preservation.
+- **S21 — Phase 2 termination:** The strictly decreasing natural variant `decreases i` guarantees loop termination at `i == 0` (`mask == 1`, `n / mask == n`), turning the loop invariant into the output postcondition. **Why needed:** The exit condition reduces the prefix to n, allowing the main invariant to imply S17.
 
 ## C. Encoding and proofs
 
@@ -133,6 +133,8 @@ The separate `Int64Fibonacci` module imports the Level 1–2 model and adds the 
 
 ## D. Results
 
+**Specification-to-evidence mapping:** S1–S10 concern the recursive specification, doubling lemmas, result contracts and step bounds; S11–S16 concern bounded signed-64-bit representability; S17–S21 concern the iterative pair contract, loop invariants and termination. The verifier's per-command counts below include multiple proof obligations and should not be mistaken for the number of distinct numbered specifications.
+
 Verify the independent Level 1–2 source, the Level 3 signed-64-bit source, and the Level 4 iterative bit-based source using **Dafny 4.11.0** (`4.11.0+fcb2042d6d`):
 
 ```sh
@@ -149,7 +151,7 @@ dafny verify src/IterativeFibonacci.dfy
 
 **Verification difficulty (resolved):** During integration, `Addition(m,n)` timed out at the default 30-second SMT limit on Windows (`15 verified, 0 errors, 1 time out`). Raising that lemma's verification limit to 120 seconds allowed the proof to complete (`16 verified, 0 errors`) without `assume`, `{:axiom}`, or any weakened specification. There are no remaining failed verification obligations in the final source.
 
-The implementation is complete for the stated H24 properties. The optional general-addition lemma is given a 120-second SMT verification budget for cross-platform reliability; no proof steps are assumed. The source contains no `assume` or `{:axiom}`; final verification counts for the merged proof branch must be updated from a fresh run. GitHub Actions is configured to run verification of all three sources on `main`.
+The implementation is complete for the stated H24 properties. The optional general-addition lemma is given a 120-second SMT verification budget for cross-platform reliability; no proof steps are assumed. The source contains no `assume` or `{:axiom}`; the merged branch was verified in the final GitHub Actions run, with the per-file counts recorded above. GitHub Actions is configured to run verification of all three sources on `main`.
 
 Running `dafny run src/IterativeFibonacci.dfy` confirms concrete execution on boundary and representative inputs:
 
