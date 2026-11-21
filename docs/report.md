@@ -172,9 +172,6 @@ F(100) = 354224848179261915075
 
 The informal behavior and reference recurrence were straightforward to express with `n: nat` and the recursive function `Fib`. The pair-returning API also maps naturally to the two fast-doubling identities and provides a clear public postcondition `result == Fib(n)`.
 
-### What was hard, and what we changed
-
-
 ### Difficulties encountered and their resolution
 
 **Proving the doubling identities.** The fast-doubling formulas do not follow automatically from the Fibonacci recurrence in the verifier. The recursive proof uses the `Doubling` lemma, induction, and explicit algebraic calculation steps to connect `Fib(k)`, `Fib(k+1)`, `Fib(2k)`, and `Fib(2k+1)`. The executable recursive implementation then reuses the lemma rather than assuming the identities.
